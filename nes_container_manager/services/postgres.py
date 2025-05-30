@@ -1,10 +1,13 @@
 from testcontainers.postgres import PostgresContainer
 
+
 def start_postgres():
-    container = PostgresContainer("postgres:15")
-    container.with_env("POSTGRES_DB", "testdb")
-    container.with_env("POSTGRES_USER", "user")
-    container.with_env("POSTGRES_PASSWORD", "pass")
+    container = PostgresContainer(
+        image="postgres:15",
+        username="user",
+        password="password",
+        dbname="testdb"
+    )
     container.with_exposed_ports(5432)
     container.start()
     return container

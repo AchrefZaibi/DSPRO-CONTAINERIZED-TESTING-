@@ -33,7 +33,7 @@ class ContainerManager:
                 "port": container.get_exposed_port(5432),
                 "database": "testdb",
                 "user": "user",
-                "password": "pass"
+                "password": "password"
             }
         elif service_name == "mqtt":
             return {
