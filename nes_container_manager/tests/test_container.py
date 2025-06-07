@@ -25,7 +25,7 @@ def test_start_and_get_connection_info():
         assert pg_info["port"]
         assert pg_info["database"] == "testdb"
         assert pg_info["user"] == "user"
-        assert pg_info["password"] == "pass"
+        assert pg_info["password"] == "password"
 
 def test_get_connection_info_before_start():
     manager = ContainerManager(services=["mqtt"])
