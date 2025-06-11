@@ -1,6 +1,10 @@
 from nes_container_manager.services.mqtt import start_mqtt
 from nes_container_manager.services.postgres import start_postgres
+import os
 
+
+def is_inside_container():
+    return os.path.exists("/.dockerenv")
 class ContainerManager:
     def __init__(self, services):
         self.services = services
@@ -22,14 +26,15 @@ class ContainerManager:
             return start_postgres()
         else:
             raise ValueError(f"Unknown service: {service_name}")
-
+    import os
     def get_connection_info(self, service_name):
         container = self.containers.get(service_name)
         if not container:
             return None
+        host = "host.docker.internal"
         if service_name == "postgres":
             return {
-                "host": container.get_container_host_ip(),
+                "host": host,
                 "port": container.get_exposed_port(5432),
                 "database": "testdb",
                 "user": "user",
@@ -37,9 +42,10 @@ class ContainerManager:
             }
         elif service_name == "mqtt":
             return {
-                "host": container.get_container_host_ip(),
+                "host": host,
                 "port": container.get_exposed_port(1883)
             }
+
 
     def cleanup_services(self):
         for container in self.containers.values():
