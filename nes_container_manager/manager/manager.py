@@ -3,8 +3,6 @@ from nes_container_manager.services.postgres import start_postgres
 import os
 
 
-def is_inside_container():
-    return os.path.exists("/.dockerenv")
 class ContainerManager:
     def __init__(self, services):
         self.services = services
