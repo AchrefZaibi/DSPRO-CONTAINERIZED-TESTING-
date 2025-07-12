@@ -2,8 +2,11 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY .. /app/
+COPY . .
 
-RUN pip install .
+RUN pip install --no-cache-dir -r requirements.txt
 
-CMD ["python", "nes_container_manager/tests/run_test.py"]
+EXPOSE 5000
+
+CMD ["python", "server.py"]
+

@@ -1,0 +1,4 @@
+﻿flask
+testcontainers
+psycopg2-binary
+paho-mqtt
