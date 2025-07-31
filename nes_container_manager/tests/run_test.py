@@ -1,16 +1,27 @@
+# server.py
+
+from flask import Flask, request, jsonify
 from nes_container_manager.manager.manager import ContainerManager
 import psycopg2
 import paho.mqtt.client as mqtt
-import time
 import socket
+import time
 
-# 🔁 Helper function to wait for service to become available
+# 🔧 Initialize Flask app
+app = Flask(__name__)
+
+# 🔁 Global variables
+container_manager = None
+mqtt_client = None
+mqtt_messages = []
+
+# 🕒 Wait for port to become available
 def wait_for_port(host, port, timeout=30):
     print(f"🔄 Waiting for {host}:{port} ...")
     start_time = time.time()
     while True:
         try:
-            with socket.create_connection((host, int(port)), timeout=2):
+            with socket.create_connection((host, int(port)), timeout=20):
                 print(f"✅ Port {port} on {host} is open!")
                 return True
         except OSError as e:
@@ -20,61 +31,124 @@ def wait_for_port(host, port, timeout=30):
                 return False
             time.sleep(1)
 
-# 👇 Everything goes inside this block!
-with ContainerManager(services=["mqtt", "postgres"]) as manager:
-    pg_info = manager.get_connection_info("postgres")
-    mqtt_info = manager.get_connection_info("mqtt")
+# 🔊 MQTT handlers
+def on_connect(client, userdata, flags, rc):
+    print("✅ MQTT connected")
+    client.subscribe("test/topic")
 
-    # === PostgreSQL Logic ===
-    if wait_for_port(pg_info["host"], pg_info["port"]):
-        try:
-            conn = psycopg2.connect(
-                host=pg_info["host"],
-                port=pg_info["port"],
-                dbname=pg_info["database"],
-                user=pg_info["user"],
-                password=pg_info["password"],
-                connect_timeout=3
-            )
+def on_message(client, userdata, msg):
+    payload = msg.payload.decode()
+    print(f"📩 MQTT Received: {msg.topic} => {payload}")
+    mqtt_messages.append({"topic": msg.topic, "payload": payload})
 
+# 🌐 Root check
+@app.route("/")
+def index():
+    return "✅ Container Manager API is running!"
 
-            cur = conn.cursor()
-            cur.execute("CREATE TABLE IF NOT EXISTS test_data (id SERIAL PRIMARY KEY, name TEXT);")
-            cur.execute("INSERT INTO test_data (name) VALUES ('Ghassen');")
-            conn.commit()
-            cur.execute("SELECT * FROM test_data;")
-            rows = cur.fetchall()
-            print("✅ DB Rows:", rows)
-            cur.close()
-            conn.close()
+# 🚀 Start containers
+@app.route("/start", methods=["POST"])
+def start_services():
+    global container_manager, mqtt_client
 
-        except Exception as e:
-            print("❌ DB Error:", e)
-            print("🔍 pg_info:", pg_info)
-    else:
-        print("❌ PostgreSQL not ready after timeout")
+    services = request.json.get("services", ["postgres", "mqtt"])
+    print(f"🚀 Starting services: {services}")
 
-    # === MQTT Logic ===
-    def on_connect(client, userdata, flags, rc):
-        print("✅ Connected to MQTT Broker")
+    try:
+        # Create and start container manager
+        container_manager = ContainerManager(services=services)
+        container_manager.__enter__()  # manually enter context
+        print("✅ Containers started")
 
-    def on_message(client, userdata, msg):
-        print(f"📩 Received: {msg.topic} => {msg.payload.decode()}")
+        # Get connection info and wait for ports
+        for name in services:
+            conn = container_manager.get_connection_info(name)
+            if not wait_for_port(conn["host"], conn["port"], timeout=60):
+                raise TimeoutError(f"{name} on {conn['host']}:{conn['port']} not ready.")
 
-    client = mqtt.Client(protocol=mqtt.MQTTv311)
-    client.on_connect = on_connect
-    client.on_message = on_message
+        # Start MQTT
+        if "mqtt" in services:
+            mqtt_info = container_manager.get_connection_info("mqtt")
+            mqtt_client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION1)
+            mqtt_client.on_connect = on_connect
+            mqtt_client.on_message = on_message
+            mqtt_client.connect(mqtt_info["host"], int(mqtt_info["port"]), 60)
+            mqtt_client.loop_start()
 
-    if wait_for_port(mqtt_info["host"], mqtt_info["port"]):
-        try:
-            client.connect(mqtt_info["host"], int(mqtt_info["port"]), 60)
-            client.loop_start()
-            client.subscribe("test/topic")
-            client.publish("test/topic", "Hello from ContainerManager!")
-            time.sleep(2)
-            client.loop_stop()
-            client.disconnect()
-        except Exception as e:
-            print("❌ MQTT Error:", e)
-    else:
-        print("❌ MQTT not ready after timeout")
+        # Done
+        info = {
+            name: container_manager.get_connection_info(name)
+            for name in services
+        }
+
+        return jsonify({"status": "started", "info": info})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print("❌ Error in /start:", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 🛑 Stop containers
+@app.route("/stop", methods=["POST"])
+def stop_services():
+    global container_manager, mqtt_client
+
+    try:
+        if mqtt_client:
+            mqtt_client.loop_stop()
+            mqtt_client.disconnect()
+            mqtt_client = None
+
+        if container_manager:
+            container_manager.__exit__(None, None, None)
+            container_manager = None
+
+        print("🛑 Containers stopped")
+        return jsonify({"status": "stopped"})
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 📦 Fetch test data
+@app.route("/data", methods=["GET"])
+def get_data():
+    if not container_manager:
+        return jsonify({"status": "error", "message": "No running containers"}), 400
+
+    try:
+        # PostgreSQL query
+        pg_info = container_manager.get_connection_info("postgres")
+        conn = psycopg2.connect(
+            host=pg_info["host"],
+            port=pg_info["port"],
+            dbname=pg_info["database"],
+            user=pg_info["user"],
+            password=pg_info["password"],
+            connect_timeout=3
+        )
+        cur = conn.cursor()
+        cur.execute("SELECT * FROM test_data;")
+        rows = cur.fetchall()
+        cur.close()
+        conn.close()
+
+        return jsonify({
+            "status": "ok",
+            "postgres": rows,
+            "mqtt": mqtt_messages
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# 📨 C++ client sends message
+@app.route("/message", methods=["POST"])
+def receive_message():
+    data = request.json
+    print(f"📨 Received from client: {data}")
+    return jsonify({"status": "ok", "message": "Message received!"})
+
+# ▶ Run Flask app
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5050)

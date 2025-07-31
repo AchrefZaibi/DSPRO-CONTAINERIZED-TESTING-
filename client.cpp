@@ -4,7 +4,7 @@
 #include <thread>
 #include <chrono>
 
-const std::string SERVER_URL = "http://localhost:5000";
+const std::string SERVER_URL = "http://172.21.80.102:5050";
 const std::string START_ENDPOINT = SERVER_URL + "/start";
 const std::string STOP_ENDPOINT = SERVER_URL + "/stop";
 const std::string MESSAGE_ENDPOINT = SERVER_URL + "/message";
