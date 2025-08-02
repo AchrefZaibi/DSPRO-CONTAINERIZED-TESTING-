@@ -4,7 +4,7 @@
 #include <thread>
 #include <chrono>
 
-const std::string SERVER_URL = "http://172.21.80.102:5050";
+const std::string SERVER_URL = "0.0.0.0:5050";
 const std::string START_ENDPOINT = SERVER_URL + "/start";
 const std::string STOP_ENDPOINT = SERVER_URL + "/stop";
 const std::string MESSAGE_ENDPOINT = SERVER_URL + "/message";
@@ -22,7 +22,7 @@ void send_post(const std::string& url, const std::string& json_payload) {
 
         CURLcode res = curl_easy_perform(curl);
         if (res != CURLE_OK)
-            std::cerr << " Request to " << url << " failed: " << curl_easy_strerror(res) << std::endl;
+            std::cerr << "Request to " << url << " failed: " << curl_easy_strerror(res) << std::endl;
 
         curl_easy_cleanup(curl);
         curl_slist_free_all(headers);
@@ -30,18 +30,18 @@ void send_post(const std::string& url, const std::string& json_payload) {
 }
 
 int main() {
-    std::cout << "▶Starting services..." << std::endl;
+    std::cout << " Starting services..." << std::endl;
     send_post(START_ENDPOINT, R"({"services": ["postgres", "mqtt"]})");
 
-    std::this_thread::sleep_for(std::chrono::seconds(2));  // wait a bit for containers to start
+    std::this_thread::sleep_for(std::chrono::seconds(20));  // ✅ fixed closing parenthesis
 
-    std::cout << "Sending message to server..." << std::endl;
+    std::cout << " Sending message to server..." << std::endl;
     send_post(MESSAGE_ENDPOINT, R"({"message": "Hello from C++ client!"})");
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
     std::cout << " Stopping services..." << std::endl;
-    send_post(STOP_ENDPOINT, "");
+    send_post(STOP_ENDPOINT, R"({"status": "stopped"})");  // ✅ proper JSON
 
     return 0;
 }
