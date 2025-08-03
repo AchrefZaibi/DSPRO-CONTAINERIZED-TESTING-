@@ -2,11 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY . .
-
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-EXPOSE 5050
+COPY . .
 
-CMD ["python", "server.py"]
+# Ajouter le répertoire racine au PYTHONPATH
+ENV PYTHONPATH=/app
 
+CMD ["python", "nes_container_manager/tests/run_test.py"]

@@ -4,9 +4,9 @@ import paho.mqtt.client as mqtt
 import time
 import socket
 
-# 🔁 Helper function to wait for service to become available
+# Helper function to wait for service to become available
 def wait_for_port(host, port, timeout=30):
-    print(f"🔄 Waiting for {host}:{port} ...")
+    print(f" ...Waiting for {host}:{port} ...")
     start_time = time.time()
     while True:
         try:
@@ -14,7 +14,7 @@ def wait_for_port(host, port, timeout=30):
                 print(f"✅ Port {port} on {host} is open!")
                 return True
         except OSError as e:
-            print(f"⏳ Still waiting for {host}:{port} ... {str(e)}")
+            print(f".. Still waiting for {host}:{port} ... {str(e)}")
             if time.time() - start_time > timeout:
                 print(f"❌ Timeout reached for {host}:{port}")
                 return False
@@ -41,6 +41,8 @@ with ContainerManager(services=["mqtt", "postgres"]) as manager:
             cur = conn.cursor()
             cur.execute("CREATE TABLE IF NOT EXISTS test_data (id SERIAL PRIMARY KEY, name TEXT);")
             cur.execute("INSERT INTO test_data (name) VALUES ('Ghassen');")
+            cur.execute("INSERT INTO test_data (name) VALUES ('Achref');")
+            cur.execute("INSERT INTO test_data (name) VALUES ('Yannick');")
             conn.commit()
             cur.execute("SELECT * FROM test_data;")
             rows = cur.fetchall()
@@ -50,7 +52,7 @@ with ContainerManager(services=["mqtt", "postgres"]) as manager:
 
         except Exception as e:
             print("❌ DB Error:", e)
-            print("🔍 pg_info:", pg_info)
+            print(" ...pg_info:", pg_info)
     else:
 
         print("❌ PostgreSQL not ready after timeout")
@@ -60,7 +62,7 @@ with ContainerManager(services=["mqtt", "postgres"]) as manager:
         print("✅ Connected to MQTT Broker")
 
     def on_message(client, userdata, msg):
-        print(f"📩 Received: {msg.topic} => {msg.payload.decode()}")
+        print(f"...Received: {msg.topic} => {msg.payload.decode()}")
 
     client = mqtt.Client(protocol=mqtt.MQTTv311)
     client.on_connect = on_connect
